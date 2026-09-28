@@ -1,4 +1,4 @@
-import { Octokit } from '@octokit/rest';
+import type { Octokit } from '@octokit/rest';
 import { env } from '../../config/env';
 import { AppError } from '../../middleware/errorHandler';
 import { MergedPullRequest, RepoIssue, RepoMetadata, RepoTreeEntry } from './types';
@@ -9,12 +9,19 @@ const RECENT_PRS_CACHE_TTL_MS = 10 * 60 * 1000;
 const PR_DETAIL_CONCURRENCY = 6;
 
 class GitHubServiceImpl {
-  private octokit: Octokit;
+  private octokitPromise: Promise<Octokit> | null = null;
   private fileTreeCache = new TtlCache<RepoTreeEntry[]>(FILE_TREE_CACHE_TTL_MS);
   private recentPRsCache = new TtlCache<MergedPullRequest[]>(RECENT_PRS_CACHE_TTL_MS);
 
-  constructor() {
-    this.octokit = new Octokit(env.GITHUB_TOKEN ? { auth: env.GITHUB_TOKEN } : {});
+  private async getOctokit(): Promise<Octokit> {
+    if (!this.octokitPromise) {
+      this.octokitPromise = (async () => {
+        const dynamicImport = new Function('specifier', 'return import(specifier)');
+        const { Octokit: OctokitConstructor } = await dynamicImport('@octokit/rest');
+        return new OctokitConstructor(env.GITHUB_TOKEN ? { auth: env.GITHUB_TOKEN } : {});
+      })();
+    }
+    return this.octokitPromise;
   }
 
   private async handle<T>(fn: () => Promise<T>, notFoundMessage: string): Promise<T> {
@@ -33,7 +40,8 @@ class GitHubServiceImpl {
 
   async getRepoMetadata(owner: string, repo: string): Promise<RepoMetadata> {
     return this.handle(async () => {
-      const { data } = await this.octokit.repos.get({ owner, repo });
+      const octokit = await this.getOctokit();
+      const { data } = await octokit.repos.get({ owner, repo });
       return {
         owner: data.owner.login,
         repo: data.name,
@@ -52,7 +60,8 @@ class GitHubServiceImpl {
 
   async getReadme(owner: string, repo: string): Promise<string | null> {
     try {
-      const { data } = await this.octokit.repos.getReadme({ owner, repo });
+      const octokit = await this.getOctokit();
+      const { data } = await octokit.repos.getReadme({ owner, repo });
       return Buffer.from(data.content, 'base64').toString('utf-8');
     } catch {
       return null;
@@ -62,7 +71,8 @@ class GitHubServiceImpl {
   async getFileTree(owner: string, repo: string, branch: string): Promise<RepoTreeEntry[]> {
     return this.fileTreeCache.getOrCompute(`${owner}/${repo}@${branch}`, () =>
       this.handle(async () => {
-        const { data } = await this.octokit.git.getTree({
+        const octokit = await this.getOctokit();
+        const { data } = await octokit.git.getTree({
           owner,
           repo,
           tree_sha: branch,
@@ -81,7 +91,8 @@ class GitHubServiceImpl {
 
   async getFileContent(owner: string, repo: string, path: string): Promise<string | null> {
     try {
-      const { data } = await this.octokit.repos.getContent({ owner, repo, path });
+      const octokit = await this.getOctokit();
+      const { data } = await octokit.repos.getContent({ owner, repo, path });
       if (Array.isArray(data) || data.type !== 'file' || !('content' in data)) {
         return null;
       }
@@ -93,6 +104,7 @@ class GitHubServiceImpl {
 
   async getOpenIssues(owner: string, repo: string, maxCount = 50): Promise<RepoIssue[]> {
     return this.handle(async () => {
+      const octokit = await this.getOctokit();
       const issues: RepoIssue[] = [];
       // The "issues" endpoint also returns pull requests, so we may need several
       // pages to collect `maxCount` real issues. Cap pages as a safety net.
@@ -102,7 +114,7 @@ class GitHubServiceImpl {
       let realIssueCount = 0;
 
       while (realIssueCount < maxCount && page <= MAX_PAGES) {
-        const { data } = await this.octokit.issues.listForRepo({
+        const { data } = await octokit.issues.listForRepo({
           owner,
           repo,
           state: 'open',
@@ -139,7 +151,8 @@ class GitHubServiceImpl {
   async getRecentMergedPullRequests(owner: string, repo: string, maxCount = 20): Promise<MergedPullRequest[]> {
     return this.recentPRsCache.getOrCompute(`${owner}/${repo}:${maxCount}`, () =>
       this.handle(async () => {
-        const { data } = await this.octokit.pulls.list({
+        const octokit = await this.getOctokit();
+        const { data } = await octokit.pulls.list({
           owner,
           repo,
           state: 'closed',
@@ -152,8 +165,8 @@ class GitHubServiceImpl {
 
         const withFiles = await mapWithConcurrency(merged, PR_DETAIL_CONCURRENCY, async (pr) => {
           try {
-            const { data: full } = await this.octokit.pulls.get({ owner, repo, pull_number: pr.number });
-            const { data: files } = await this.octokit.pulls.listFiles({ owner, repo, pull_number: pr.number, per_page: 100 });
+            const { data: full } = await octokit.pulls.get({ owner, repo, pull_number: pr.number });
+            const { data: files } = await octokit.pulls.listFiles({ owner, repo, pull_number: pr.number, per_page: 100 });
             const result: MergedPullRequest = {
               number: pr.number,
               title: pr.title,

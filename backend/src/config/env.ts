@@ -13,7 +13,11 @@ const envSchema = z.object({
 const parsed = envSchema.safeParse(process.env);
 
 if (!parsed.success) {
-  console.error('Invalid environment variables:', parsed.error.flatten().fieldErrors);
+  const errors = JSON.stringify(parsed.error.flatten().fieldErrors);
+  console.error('Invalid environment variables:', errors);
+  if (process.env.VERCEL) {
+    throw new Error(`Invalid environment variables on Vercel: ${errors}`);
+  }
   process.exit(1);
 }
 

@@ -13,10 +13,15 @@ export function connectDB(): Promise<typeof mongoose> {
     return Promise.resolve(mongoose);
   }
   if (!connectionPromise) {
-    connectionPromise = mongoose.connect(env.MONGODB_URI).catch((err) => {
-      connectionPromise = null; // allow retry on the next request instead of caching a failure
-      throw err;
-    });
+    connectionPromise = mongoose
+      .connect(env.MONGODB_URI, {
+        serverSelectionTimeoutMS: 5000,
+        connectTimeoutMS: 5000,
+      })
+      .catch((err) => {
+        connectionPromise = null; // allow retry on the next request instead of caching a failure
+        throw err;
+      });
   }
   return connectionPromise;
 }
