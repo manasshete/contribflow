@@ -2,20 +2,29 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import mongoose from 'mongoose';
-import { env } from './config/env';
-import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import { connectDB } from './lib/db';
 import { generalRateLimiter } from './middleware/rateLimiter';
 import repositoryRoutes from './routes/repository.routes';
 import recommendationRoutes from './routes/recommendation.routes';
 import issueRoutes from './routes/issue.routes';
-import chatRoutes from './routes/chat.routes';
+import firstContributionRoutes from './routes/first-contribution.routes';
 
 const app = express();
 
+app.set('trust proxy', 1);
 app.use(helmet());
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
 app.use(generalRateLimiter);
+
+app.use(async (_req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    res.status(503).json({ error: 'Database connection failed. Please try again shortly.' });
+  }
+});
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', mongo: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' });
@@ -24,23 +33,13 @@ app.get('/health', (_req, res) => {
 app.use('/api/repositories', repositoryRoutes);
 app.use('/api/recommendations', recommendationRoutes);
 app.use('/api/issues', issueRoutes);
-app.use('/api/chat', chatRoutes);
+app.use('/api', firstContributionRoutes);
 
-app.use(notFoundHandler);
-app.use(errorHandler);
-
-async function start() {
-  try {
-    await mongoose.connect(env.MONGODB_URI);
-    console.log('MongoDB connected');
-  } catch (err) {
-    console.error('MongoDB connection failed:', err);
-    process.exit(1);
-  }
-
-  app.listen(env.PORT, () => {
-    console.log(`ContribFlow backend listening on port ${env.PORT}`);
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  const port = process.env.PORT || 4000;
+  app.listen(port, () => {
+    console.log(`ContribFlow backend running on port ${port}`);
   });
 }
 
-start();
+export default app;

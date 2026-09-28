@@ -17,6 +17,15 @@ const recommendationRequestSchema = z.object({
   sessionId: z.string().optional(),
 });
 
+const RECOMMENDATION_CACHE_TTL_MS = 30 * 60 * 1000;
+
+function sameSkillSet(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const normalize = (skills: string[]) => [...skills].map((s) => s.toLowerCase()).sort();
+  const [na, nb] = [normalize(a), normalize(b)];
+  return na.every((skill, i) => skill === nb[i]);
+}
+
 export async function createRecommendationsHandler(req: Request, res: Response, next: NextFunction) {
   try {
     const body = recommendationRequestSchema.parse(req.body);
@@ -33,6 +42,44 @@ export async function createRecommendationsHandler(req: Request, res: Response, 
     const analysisDoc = await RepositoryAnalysisModel.findOne({ repositoryId: repoDoc._id }).sort({ cachedAt: -1 });
 
     const profile = { skills: body.skills, experience: body.experience, availableHours: body.availableHours };
+
+    const recentCached = await IssueRecommendationModel.find({
+      repositoryId: repoDoc._id,
+      'developerProfile.experience': profile.experience,
+      'developerProfile.availableHours': profile.availableHours,
+      createdAt: { $gte: new Date(Date.now() - RECOMMENDATION_CACHE_TTL_MS) },
+    })
+      .sort({ createdAt: -1 })
+      .limit(20);
+
+    const cached = recentCached.find((doc) => sameSkillSet(doc.developerProfile.skills, profile.skills));
+
+    if (cached) {
+      return res.json({
+        sessionId,
+        owner: body.owner,
+        repo: body.repo,
+        recommendations: cached.recommendations
+          .map((rec) => ({
+            issueNumber: rec.issueNumber,
+            title: rec.title,
+            type: rec.type,
+            matchScore: rec.matchScore,
+            issueHealth: rec.issueHealth,
+            difficulty: rec.difficulty,
+            estimatedTime: rec.estimatedTime,
+            requiredSkills: rec.requiredSkills,
+            matchingSkills: rec.matchingSkills,
+            reason: rec.reason,
+            reasons: rec.reasons,
+            risk: rec.risk,
+            relevantFiles: rec.relevantFiles,
+            labels: rec.labels,
+          }))
+          .sort((a, b) => b.matchScore - a.matchScore),
+      });
+    }
+
     const recommendations = await buildRecommendations(repoDoc, analysisDoc, profile);
 
     if (recommendations.length > 0) {
@@ -49,16 +96,19 @@ export async function createRecommendationsHandler(req: Request, res: Response, 
         recommendations: recommendations.map((rec) => ({
           issueId: issueIdByNumber.get(rec.issueNumber),
           issueNumber: rec.issueNumber,
+          title: rec.title,
+          type: rec.type,
           matchScore: rec.matchScore,
-          ruleScore: rec.ruleScore,
-          llmScore: rec.llmScore,
+          issueHealth: rec.issueHealth,
           difficulty: rec.difficulty,
           estimatedTime: rec.estimatedTime,
           requiredSkills: rec.requiredSkills,
           matchingSkills: rec.matchingSkills,
           reason: rec.reason,
+          reasons: rec.reasons,
           risk: rec.risk,
           relevantFiles: rec.relevantFiles,
+          labels: rec.labels,
         })),
       });
     }

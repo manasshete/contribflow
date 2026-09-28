@@ -4,10 +4,10 @@ import { IssueModel, IssueDocument } from '../../models/Issue.model';
 import { RepositoryDocument } from '../../models/Repository.model';
 import { RepositoryAnalysisDocument } from '../../models/RepositoryAnalysis.model';
 import { selectCandidateIssues } from './issue.scorer';
-import { analyzeIssuesInBatches } from './issue.analyzer';
+import { classifyIssues } from './issue.analyzer';
 
 const MAX_FETCHED_ISSUES = 50;
-const MAX_CANDIDATES = 12;
+const MAX_CANDIDATES = 50;
 
 export type IssueHydrated = HydratedDocument<IssueDocument>;
 
@@ -16,16 +16,11 @@ export interface AnalyzedIssuesResult {
   source: 'cache' | 'fresh';
 }
 
-function buildRepoSummaryContext(repoDoc: RepositoryDocument, analysisDoc: RepositoryAnalysisDocument | null): string {
-  return analysisDoc
-    ? `Summary: ${analysisDoc.summary}\nTechnologies: ${analysisDoc.technologies.join(', ')}\nArchitecture: ${analysisDoc.architecture.type}`
-    : `Repository ${repoDoc.owner}/${repoDoc.repo}, primary language: ${repoDoc.metadata.primaryLanguage ?? 'unknown'}`;
-}
-
 /**
  * Returns analyzed candidate issues for a repository, fetching + running the
- * two-stage (deterministic filter -> Groq analysis) pipeline only when there
- * is no usable cache. Shared by the issues endpoint and the recommendation engine.
+ * two-stage (deterministic spam filter -> deterministic classification)
+ * pipeline only when there is no usable cache. Shared by the issues endpoint
+ * and the recommendation engine.
  */
 export async function getAnalyzedIssues(
   repoDoc: RepositoryDocument,
@@ -42,7 +37,6 @@ export async function getAnalyzedIssues(
   }
 
   const { owner, repo } = repoDoc;
-  const repoSummaryContext = buildRepoSummaryContext(repoDoc, analysisDoc);
   const openIssues = await GitHubService.getOpenIssues(owner, repo, MAX_FETCHED_ISSUES);
 
   await Promise.all(
@@ -71,7 +65,10 @@ export async function getAnalyzedIssues(
     return { issues: [], source: 'fresh' };
   }
 
-  const analyses = await analyzeIssuesInBatches(candidates, repoSummaryContext);
+  const analyses = classifyIssues(candidates, {
+    primaryLanguage: repoDoc.metadata.primaryLanguage,
+    technologies: analysisDoc?.technologies ?? [],
+  });
 
   const analyzedDocs = await Promise.all(
     candidates

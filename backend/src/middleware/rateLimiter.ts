@@ -1,11 +1,11 @@
 import rateLimit from 'express-rate-limit';
 
-export const aiRateLimiter = rateLimit({
+export const heavyRateLimiter = rateLimit({
   windowMs: 60 * 1000,
   limit: 30,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many AI requests, please slow down and try again shortly.' },
+  message: { error: 'Too many requests, please slow down and try again shortly.' },
 });
 
 export const generalRateLimiter = rateLimit({

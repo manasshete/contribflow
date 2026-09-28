@@ -1,9 +1,12 @@
 import {
   AnalyzedIssue,
-  ChatMessage,
   DeveloperProfileInput,
+  Experience,
+  FirstContributionSession,
+  IssueType,
   Recommendation,
   RepositoryAnalysis,
+  RepositoryUnderstanding,
 } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
@@ -72,21 +75,49 @@ export function analyzeIssue(owner: string, repo: string, issueNumber: number): 
   return request(`/api/issues/${owner}/${repo}/${issueNumber}/analyze`, { method: 'POST' });
 }
 
-export function getConversation(
+export function getFirstContributionState(
   owner: string,
   repo: string,
-  issueNumber: number,
   sessionId: string
-): Promise<{ messages: ChatMessage[] }> {
-  return request(`/api/chat/${owner}/${repo}/${issueNumber}?sessionId=${encodeURIComponent(sessionId)}`);
+): Promise<{ repository: RepositoryUnderstanding; session: FirstContributionSession | null }> {
+  return request(`/api/repositories/${owner}/${repo}/first-contribution?sessionId=${encodeURIComponent(sessionId)}`);
 }
 
-export function sendChatMessage(input: {
-  owner: string;
-  repo: string;
-  issueNumber: number;
-  sessionId: string;
-  message: string;
-}): Promise<{ sessionId: string; reply: string; messages: ChatMessage[] }> {
-  return request('/api/chat', { method: 'POST', body: JSON.stringify(input) });
+export function submitFirstContributionProfile(
+  owner: string,
+  repo: string,
+  input: {
+    sessionId: string;
+    skills: string[];
+    experience: Experience;
+    availableHours: number;
+    preferredType?: IssueType | 'Any';
+  }
+): Promise<{ session: FirstContributionSession; recommendations: Recommendation[] }> {
+  return request(`/api/repositories/${owner}/${repo}/first-contribution/profile`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function selectFirstContributionIssue(
+  owner: string,
+  repo: string,
+  sessionId: string,
+  issueNumber: number
+): Promise<{ session: FirstContributionSession; issue: AnalyzedIssue }> {
+  return request(`/api/repositories/${owner}/${repo}/first-contribution/issue`, {
+    method: 'POST',
+    body: JSON.stringify({ sessionId, issueNumber }),
+  });
+}
+
+export function updateFirstContributionProgress(
+  sessionMongoId: string,
+  patch: { currentStep?: number; completedSteps?: number[]; checklistToggle?: { id: string; done: boolean } }
+): Promise<{ session: FirstContributionSession }> {
+  return request(`/api/first-contribution/${sessionMongoId}/progress`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
 }

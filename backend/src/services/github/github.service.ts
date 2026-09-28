@@ -2,9 +2,16 @@ import { Octokit } from '@octokit/rest';
 import { env } from '../../config/env';
 import { AppError } from '../../middleware/errorHandler';
 import { MergedPullRequest, RepoIssue, RepoMetadata, RepoTreeEntry } from './types';
+import { TtlCache, mapWithConcurrency } from '../../utils/ttlCache';
+
+const FILE_TREE_CACHE_TTL_MS = 10 * 60 * 1000;
+const RECENT_PRS_CACHE_TTL_MS = 10 * 60 * 1000;
+const PR_DETAIL_CONCURRENCY = 6;
 
 class GitHubServiceImpl {
   private octokit: Octokit;
+  private fileTreeCache = new TtlCache<RepoTreeEntry[]>(FILE_TREE_CACHE_TTL_MS);
+  private recentPRsCache = new TtlCache<MergedPullRequest[]>(RECENT_PRS_CACHE_TTL_MS);
 
   constructor() {
     this.octokit = new Octokit(env.GITHUB_TOKEN ? { auth: env.GITHUB_TOKEN } : {});
@@ -53,21 +60,23 @@ class GitHubServiceImpl {
   }
 
   async getFileTree(owner: string, repo: string, branch: string): Promise<RepoTreeEntry[]> {
-    return this.handle(async () => {
-      const { data } = await this.octokit.git.getTree({
-        owner,
-        repo,
-        tree_sha: branch,
-        recursive: '1',
-      });
-      return data.tree
-        .filter((entry) => entry.path && entry.type)
-        .map((entry) => ({
-          path: entry.path as string,
-          type: entry.type as 'blob' | 'tree',
-          size: entry.size,
-        }));
-    }, `Could not fetch file tree for ${owner}/${repo}`);
+    return this.fileTreeCache.getOrCompute(`${owner}/${repo}@${branch}`, () =>
+      this.handle(async () => {
+        const { data } = await this.octokit.git.getTree({
+          owner,
+          repo,
+          tree_sha: branch,
+          recursive: '1',
+        });
+        return data.tree
+          .filter((entry) => entry.path && entry.type)
+          .map((entry) => ({
+            path: entry.path as string,
+            type: entry.type as 'blob' | 'tree',
+            size: entry.size,
+          }));
+      }, `Could not fetch file tree for ${owner}/${repo}`)
+    );
   }
 
   async getFileContent(owner: string, repo: string, path: string): Promise<string | null> {
@@ -128,38 +137,42 @@ class GitHubServiceImpl {
   }
 
   async getRecentMergedPullRequests(owner: string, repo: string, maxCount = 20): Promise<MergedPullRequest[]> {
-    return this.handle(async () => {
-      const { data } = await this.octokit.pulls.list({
-        owner,
-        repo,
-        state: 'closed',
-        per_page: maxCount,
-        sort: 'updated',
-        direction: 'desc',
-      });
+    return this.recentPRsCache.getOrCompute(`${owner}/${repo}:${maxCount}`, () =>
+      this.handle(async () => {
+        const { data } = await this.octokit.pulls.list({
+          owner,
+          repo,
+          state: 'closed',
+          per_page: maxCount,
+          sort: 'updated',
+          direction: 'desc',
+        });
 
-      const merged = data.filter((pr) => pr.merged_at);
-      const withFiles: MergedPullRequest[] = [];
+        const merged = data.filter((pr) => pr.merged_at).slice(0, maxCount);
 
-      for (const pr of merged.slice(0, maxCount)) {
-        try {
-          const { data: full } = await this.octokit.pulls.get({ owner, repo, pull_number: pr.number });
-          const { data: files } = await this.octokit.pulls.listFiles({ owner, repo, pull_number: pr.number, per_page: 100 });
-          withFiles.push({
-            number: pr.number,
-            title: pr.title,
-            mergedAt: pr.merged_at,
-            changedFiles: full.changed_files,
-            additions: full.additions,
-            deletions: full.deletions,
-            files: files.map((f) => f.filename),
-          });
-        } catch {
-          // skip PRs we can't fetch details for
-        }
-      }
-      return withFiles;
-    }, `Could not fetch pull requests for ${owner}/${repo}`);
+        const withFiles = await mapWithConcurrency(merged, PR_DETAIL_CONCURRENCY, async (pr) => {
+          try {
+            const { data: full } = await this.octokit.pulls.get({ owner, repo, pull_number: pr.number });
+            const { data: files } = await this.octokit.pulls.listFiles({ owner, repo, pull_number: pr.number, per_page: 100 });
+            const result: MergedPullRequest = {
+              number: pr.number,
+              title: pr.title,
+              body: full.body ?? '',
+              mergedAt: pr.merged_at,
+              changedFiles: full.changed_files,
+              additions: full.additions,
+              deletions: full.deletions,
+              files: files.map((f) => f.filename),
+            };
+            return result;
+          } catch {
+            return null;
+          }
+        });
+
+        return withFiles.filter((pr): pr is MergedPullRequest => pr !== null);
+      }, `Could not fetch pull requests for ${owner}/${repo}`)
+    );
   }
 }
 

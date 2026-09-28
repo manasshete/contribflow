@@ -65,10 +65,30 @@ export interface IssueAnalysis {
   analyzedAt: string;
 }
 
+export interface RankedFile extends ImportantFile {
+  relevance?: number;
+}
+
+export interface SimilarPR {
+  number: number;
+  title: string;
+  mergedAt: string | null;
+  changedFiles: number;
+  additions: number;
+  deletions: number;
+  files: string[];
+  linkedDirectly: boolean;
+  relevanceReason: string;
+}
+
 export interface ContributionPlan {
   problem: string;
   whyItMatters: string;
-  relevantFiles: ImportantFile[];
+  relevantFiles: RankedFile[];
+  relevantSymbols: string[];
+  dependencies: string[];
+  repositoryArea: string;
+  similarPRs: SimilarPR[];
   implementationSteps: string[];
   potentialRisks: string[];
   testingStrategy: string;
@@ -94,23 +114,18 @@ export interface AnalyzedIssue {
 export interface Recommendation {
   issueNumber: number;
   title: string;
+  type: IssueType;
   matchScore: number;
-  ruleScore: number;
-  llmScore: number;
+  issueHealth: number;
   difficulty: Difficulty;
   estimatedTime: string;
   requiredSkills: string[];
   matchingSkills: string[];
   reason: string;
+  reasons: string[];
   risk: 'Low' | 'Medium' | 'High';
   relevantFiles: string[];
   labels: string[];
-}
-
-export interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: string;
 }
 
 export interface DeveloperProfileInput {
@@ -120,4 +135,46 @@ export interface DeveloperProfileInput {
   experience: Experience;
   availableHours: number;
   sessionId?: string;
+}
+
+export interface RepositoryUnderstanding {
+  owner: string;
+  repo: string;
+  description: string | null;
+  primaryLanguage: string | null;
+  technologies: string[];
+  repositoryType: string;
+  summary: string;
+  mainDirectories: { frontend: string[]; backend: string[]; tests: string[]; other: string[] };
+  testingFramework: string | null;
+  packageManager: string | null;
+  contributionGuideAvailable: boolean;
+  contributingPath: string | null;
+}
+
+export type ChecklistSection = 'understand' | 'implement' | 'verify' | 'pr-code' | 'pr-meta';
+
+export interface ChecklistItem {
+  id: string;
+  section: ChecklistSection;
+  label: string;
+  done: boolean;
+}
+
+export interface FirstContributionSession {
+  _id: string;
+  sessionId: string;
+  repositoryId: string;
+  owner: string;
+  repo: string;
+  skills: string[];
+  experience?: Experience;
+  availableHours?: number;
+  preferredType?: IssueType | 'Any';
+  selectedIssueNumber?: number;
+  currentStep: number;
+  completedSteps: number[];
+  checklist: ChecklistItem[];
+  createdAt: string;
+  updatedAt: string;
 }

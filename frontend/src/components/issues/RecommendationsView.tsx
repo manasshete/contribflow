@@ -2,12 +2,11 @@
 
 import { useMemo, useState, useSyncExternalStore } from 'react';
 import useSWR from 'swr';
+import { Loader2, Sparkles, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select,
   SelectContent,
@@ -34,24 +33,42 @@ function ProfileQuickForm({ onSubmit }: { onSubmit: (profile: StoredProfile) => 
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Tell us about yourself</CardTitle>
-        <CardDescription>We need this to rank issues for you.</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="skills">Your skills (comma-separated)</Label>
-          <Input id="skills" placeholder="React, TypeScript, Node.js" value={skillsInput} onChange={(e) => setSkillsInput(e.target.value)} />
+    <div className="apple-card p-6 sm:p-8 border border-white/[0.1] shadow-2xl">
+      <div className="mb-6">
+        <div className="flex items-center gap-2 text-xs font-mono text-zinc-400 mb-2">
+          <SlidersHorizontal className="h-3.5 w-3.5 text-zinc-300" />
+          <span>Profile Required</span>
         </div>
+        <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">Set Your Developer Profile</h2>
+        <p className="mt-1 text-xs sm:text-sm text-zinc-400">
+          Calibrate your tech skills and available time to generate ranked contribution recommendations for this repository.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="skills" className="text-xs font-bold uppercase tracking-wider text-zinc-300 font-mono">
+            Your Skills (comma-separated)
+          </Label>
+          <Input
+            id="skills"
+            placeholder="React, TypeScript, Node.js, Python..."
+            value={skillsInput}
+            onChange={(e) => setSkillsInput(e.target.value)}
+            className="h-12 bg-white/[0.03] text-white text-sm border-white/[0.1] rounded-2xl focus:border-white/40 focus:ring-2 focus:ring-white/10"
+          />
+        </div>
+
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-2">
-            <Label>Experience level</Label>
+            <Label className="text-xs font-bold uppercase tracking-wider text-zinc-300 font-mono">
+              Experience Level
+            </Label>
             <Select value={experience} onValueChange={(v) => v && setExperience(v as Experience)}>
-              <SelectTrigger>
+              <SelectTrigger className="h-12 bg-white/[0.03] text-white border-white/[0.1] rounded-2xl">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-zinc-900 text-white border-white/[0.1]">
                 {EXPERIENCE_OPTIONS.map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>
                     {opt.label}
@@ -60,17 +77,30 @@ function ProfileQuickForm({ onSubmit }: { onSubmit: (profile: StoredProfile) => 
               </SelectContent>
             </Select>
           </div>
+
           <div className="flex flex-col gap-2">
-            <Label htmlFor="hours">Available time (hours)</Label>
-            <Input id="hours" type="number" min={1} value={availableHours} onChange={(e) => setAvailableHours(e.target.value)} />
+            <Label htmlFor="hours" className="text-xs font-bold uppercase tracking-wider text-zinc-300 font-mono">
+              Available Time (Hours)
+            </Label>
+            <Input
+              id="hours"
+              type="number"
+              min={1}
+              value={availableHours}
+              onChange={(e) => setAvailableHours(e.target.value)}
+              className="h-12 bg-white/[0.03] text-white border-white/[0.1] rounded-2xl text-sm font-mono"
+            />
           </div>
         </div>
+
         {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
+          <Alert variant="destructive" className="bg-rose-500/10 border-rose-500/30 text-rose-300 rounded-xl">
+            <AlertDescription className="text-xs">{error}</AlertDescription>
           </Alert>
         )}
+
         <Button
+          className="h-12 w-full rounded-full bg-white text-black font-extrabold text-sm hover:bg-[#e8e8ed] active:scale-[0.98] transition-all shadow-xl mt-2"
           onClick={() => {
             const skills = skillsInput.split(',').map((s) => s.trim()).filter(Boolean);
             const hours = Number(availableHours);
@@ -79,10 +109,10 @@ function ProfileQuickForm({ onSubmit }: { onSubmit: (profile: StoredProfile) => 
             onSubmit({ skills, experience, availableHours: hours });
           }}
         >
-          Show My Recommendations
+          Generate My Ranked Recommendations
         </Button>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -94,10 +124,6 @@ export function RecommendationsView({ owner, repo }: { owner: string; repo: stri
   const profile = useSyncExternalStore(subscribeProfile, loadProfile, getServerProfileSnapshot);
   const [filters, setFilters] = useState<IssueFilterState>({ search: '', difficulty: 'all', skill: 'all' });
 
-  // Deliberately excludes `sessionId` from the key: saving the sessionId
-  // returned by the API would otherwise mutate this same key mid-flight
-  // (profile is read from localStorage) and trigger a second, redundant
-  // Groq-backed fetch on every load.
   const recommendationKey = profile
     ? {
         owner,
@@ -108,12 +134,16 @@ export function RecommendationsView({ owner, repo }: { owner: string; repo: stri
       }
     : null;
 
-  const { data, error, isLoading } = useSWR(recommendationKey, async (key) => {
-    const sessionId = loadProfile()?.sessionId;
-    const res = await getRecommendations({ ...key, sessionId });
-    saveSessionId(res.sessionId);
-    return res.recommendations;
-  });
+  const { data, error, isLoading, mutate } = useSWR(
+    recommendationKey,
+    async (key) => {
+      const sessionId = loadProfile()?.sessionId;
+      const res = await getRecommendations({ ...key, sessionId });
+      saveSessionId(res.sessionId);
+      return res.recommendations;
+    },
+    { shouldRetryOnError: false }
+  );
 
   const availableSkills = useMemo(() => {
     if (!data) return [];
@@ -138,72 +168,65 @@ export function RecommendationsView({ owner, repo }: { owner: string; repo: stri
 
   if (isLoading) {
     return (
-      <Card className="border-primary/20 bg-muted/30 p-8 text-center">
-        <div className="flex flex-col items-center justify-center gap-4 py-6">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary animate-pulse">
-            <svg
-              className="h-6 w-6 animate-spin text-primary"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              ></circle>
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              ></path>
-            </svg>
-          </div>
-          <div>
-            <h3 className="text-lg font-semibold">Analyzing Open Issues with Groq AI...</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Fetching GitHub issues, evaluating code difficulty, and scoring fit for your skills. This takes a few seconds on first analysis.
-            </p>
-          </div>
-          <div className="mt-4 flex w-full max-w-xs flex-col gap-2">
-            <Skeleton className="h-4 w-full animate-pulse" />
-            <Skeleton className="h-4 w-3/4 animate-pulse" />
-          </div>
+      <div className="apple-card p-10 sm:p-14 text-center border border-white/[0.08] shadow-2xl flex flex-col items-center justify-center gap-4 animate-fade-in-up">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/[0.05] border border-white/[0.1] text-white">
+          <Loader2 className="h-7 w-7 animate-spin text-white" />
         </div>
-      </Card>
+        <div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1 text-[11px] font-mono text-zinc-400 mb-2">
+            <Sparkles className="h-3 w-3 text-indigo-400" />
+            <span>Deterministic Match Engine Active</span>
+          </div>
+          <h3 className="text-xl font-black text-white tracking-tight">Ranking Open Issues By Fit</h3>
+          <p className="mt-1 text-xs sm:text-sm text-zinc-400 max-w-md mx-auto leading-relaxed">
+            Extracting candidate issues, checking PR history, estimating difficulty curves, and scoring match against your skills.
+          </p>
+        </div>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Alert variant="destructive">
-        <AlertDescription>{error instanceof ApiError ? error.message : 'Failed to load recommendations.'}</AlertDescription>
+      <Alert variant="destructive" className="bg-rose-500/10 border-rose-500/30 text-rose-300 rounded-2xl p-5">
+        <AlertDescription className="flex flex-col gap-3 text-xs sm:text-sm">
+          <span>{error instanceof ApiError ? error.message : 'Failed to load recommendations.'}</span>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-fit border-rose-500/40 bg-transparent text-rose-200 hover:bg-rose-500/10"
+            onClick={() => mutate()}
+          >
+            Try again
+          </Button>
+        </AlertDescription>
       </Alert>
     );
   }
 
   if (!data || data.length === 0) {
     return (
-      <Alert>
-        <AlertDescription>
-          No strong contribution opportunities found for this repository right now. Try adjusting your skills or check back later.
-        </AlertDescription>
-      </Alert>
+      <div className="apple-card p-8 text-center border border-white/[0.08] shadow-lg">
+        <p className="text-sm text-zinc-300">
+          No strong contribution opportunities found for this repository right now. Try adjusting your skills or time commitment.
+        </p>
+      </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       <IssueFilters state={filters} onChange={setFilters} availableSkills={availableSkills} />
       {filtered.length === 0 ? (
-        <Alert>
-          <AlertDescription>No issues match these filters.</AlertDescription>
-        </Alert>
+        <div className="apple-card p-8 text-center border border-white/[0.08]">
+          <p className="text-xs sm:text-sm text-zinc-400">No issues match the selected filters.</p>
+        </div>
       ) : (
-        filtered.map((rec: Recommendation) => <IssueCard key={rec.issueNumber} recommendation={rec} owner={owner} repo={repo} />)
+        <div className="flex flex-col gap-4">
+          {filtered.map((rec: Recommendation) => (
+            <IssueCard key={rec.issueNumber} recommendation={rec} owner={owner} repo={repo} />
+          ))}
+        </div>
       )}
     </div>
   );

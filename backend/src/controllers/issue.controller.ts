@@ -29,7 +29,7 @@ export async function getRepositoryIssuesHandler(
   }
 }
 
-function serializeIssue(doc: IssueDocument) {
+export function serializeIssue(doc: IssueDocument) {
   return {
     issueNumber: doc.issueNumber,
     title: doc.title,
@@ -93,7 +93,7 @@ export async function analyzeIssueHandler(
       );
     }
     if (!issueDoc.analysis) {
-      throw new AppError(`Issue #${issueNumber} has not been AI-analyzed yet. It may not have been a top candidate issue.`, 409);
+      throw new AppError(`Issue #${issueNumber} has not been analyzed yet.`, 409);
     }
 
     if (!forceRefresh && issueDoc.contributionPlan) {

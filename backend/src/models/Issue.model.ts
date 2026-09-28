@@ -14,7 +14,21 @@ export interface IssueAnalysis {
 export interface ContributionPlan {
   problem: string;
   whyItMatters: string;
-  relevantFiles: { path: string; reason: string }[];
+  relevantFiles: { path: string; reason: string; relevance: number }[];
+  relevantSymbols: string[];
+  dependencies: string[];
+  repositoryArea: string;
+  similarPRs: {
+    number: number;
+    title: string;
+    mergedAt: string | null;
+    changedFiles: number;
+    additions: number;
+    deletions: number;
+    files: string[];
+    linkedDirectly: boolean;
+    relevanceReason: string;
+  }[];
   implementationSteps: string[];
   potentialRisks: string[];
   testingStrategy: string;
@@ -66,7 +80,25 @@ const contributionPlanSchema = new Schema<ContributionPlan>(
   {
     problem: { type: String, required: true },
     whyItMatters: { type: String, required: true },
-    relevantFiles: [{ path: { type: String, required: true }, reason: { type: String, required: true } }],
+    relevantFiles: [
+      { path: { type: String, required: true }, reason: { type: String, required: true }, relevance: Number },
+    ],
+    relevantSymbols: { type: [String], default: [] },
+    dependencies: { type: [String], default: [] },
+    repositoryArea: { type: String, default: '' },
+    similarPRs: [
+      {
+        number: Number,
+        title: String,
+        mergedAt: String,
+        changedFiles: Number,
+        additions: Number,
+        deletions: Number,
+        files: [String],
+        linkedDirectly: Boolean,
+        relevanceReason: String,
+      },
+    ],
     implementationSteps: { type: [String], default: [] },
     potentialRisks: { type: [String], default: [] },
     testingStrategy: { type: String, required: true },

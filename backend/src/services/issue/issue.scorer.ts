@@ -6,9 +6,8 @@ const NEGATIVE_LABELS = ['wontfix', 'duplicate', 'invalid', 'spam', 'discussion'
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
- * Deterministic, metadata-only scoring used to shortlist candidate issues
- * BEFORE any of them are sent to Groq. Keeps AI usage bounded regardless of
- * how many open issues a repository has.
+ * Deterministic, metadata-only scoring used to filter out spam/dead issues
+ * before classification and recommendation scoring.
  */
 export function computeCandidateScore(issue: RepoIssue): number {
   let score = 0;
@@ -40,6 +39,41 @@ export function computeCandidateScore(issue: RepoIssue): number {
   if (looksLikeSpam) score -= 100;
 
   return score;
+}
+
+export interface IssueHealthInput {
+  labels: string[];
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  commentCount: number;
+}
+
+/**
+ * Deterministic 0-100 "is this issue worth engaging with" signal, independent
+ * of how well it fits any particular developer (that's `matchScore`). Reused
+ * wherever an issue is shown to a contributor as extra context.
+ */
+export function computeIssueHealthScore(issue: IssueHealthInput): number {
+  let score = 50;
+  const labels = issue.labels.map((l) => l.toLowerCase());
+
+  for (const label of labels) {
+    if (POSITIVE_LABELS.some((l) => label.includes(l))) score += 8;
+    if (NEGATIVE_LABELS.some((l) => label.includes(l))) score -= 25;
+  }
+
+  const updatedDays = (Date.now() - new Date(issue.updatedAt).getTime()) / MS_PER_DAY;
+  if (updatedDays <= 30) score += 20;
+  else if (updatedDays <= 90) score += 10;
+  else if (updatedDays > 270) score -= 15;
+
+  const ageDays = (Date.now() - new Date(issue.createdAt).getTime()) / MS_PER_DAY;
+  if (ageDays > 730) score -= 10;
+
+  if (issue.commentCount > 0 && issue.commentCount <= 10) score += 10;
+  else if (issue.commentCount > 25) score -= 10;
+
+  return Math.max(0, Math.min(100, Math.round(score)));
 }
 
 export function selectCandidateIssues(issues: RepoIssue[], maxCandidates = 12): RepoIssue[] {

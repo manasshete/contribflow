@@ -1,4 +1,5 @@
 import { IssueDocument } from '../../models/Issue.model';
+import { ComplexitySignal } from '../issue/pr-complexity';
 
 export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced';
 
@@ -6,6 +7,11 @@ export interface DeveloperProfile {
   skills: string[];
   experience: ExperienceLevel;
   availableHours: number;
+}
+
+export interface RuleScoreContext {
+  prComplexity: ComplexitySignal | null;
+  repoComplexity: number; // 0-100, higher = more complex repository
 }
 
 export interface RuleScoreBreakdown {
@@ -17,10 +23,17 @@ export interface RuleScoreBreakdown {
   activity: number;
   issueAge: number;
   goodFirstIssueBonus: number;
+  typeAdjustment: number;
+  repoComplexityAdjustment: number;
+  prComplexityAdjustment: number;
+  reasons: string[];
 }
 
 const EXPERIENCE_RANK: Record<ExperienceLevel, number> = { beginner: 1, intermediate: 2, advanced: 3 };
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+const EASIER_TYPES = new Set(['Documentation', 'Testing']);
+const RISKIER_TYPES = new Set(['Security', 'Performance', 'Refactor']);
 
 function computeSkillMatch(requiredSkills: string[], devSkills: string[]): { score: number; matchingSkills: string[] } {
   if (requiredSkills.length === 0) {
@@ -76,10 +89,37 @@ function hasGoodFirstIssueLabel(labels: string[]): boolean {
   return labels.some((label) => /good.?first|help.?wanted/i.test(label));
 }
 
-export function computeRuleScore(issue: IssueDocument, profile: DeveloperProfile): RuleScoreBreakdown {
+function computeTypeAdjustment(type: string): number {
+  if (EASIER_TYPES.has(type)) return 3;
+  if (RISKIER_TYPES.has(type)) return -3;
+  return 0;
+}
+
+function computeRepoComplexityAdjustment(repoComplexity: number): number {
+  // Higher repo complexity slightly lowers the score - larger, more intricate
+  // codebases are riskier for any given issue regardless of its own difficulty.
+  if (repoComplexity >= 70) return -4;
+  if (repoComplexity >= 40) return -2;
+  return 0;
+}
+
+function computePrComplexityAdjustment(prComplexity: ComplexitySignal | null): number {
+  if (!prComplexity || prComplexity.relatedPRs.length === 0) return 0;
+  const avgChangedFiles =
+    prComplexity.relatedPRs.reduce((sum, pr) => sum + pr.changedFiles, 0) / prComplexity.relatedPRs.length;
+  if (avgChangedFiles <= 3) return 4;
+  if (avgChangedFiles > 6) return -4;
+  return 0;
+}
+
+export function computeRuleScore(
+  issue: IssueDocument,
+  profile: DeveloperProfile,
+  context: RuleScoreContext
+): RuleScoreBreakdown {
   const analysis = issue.analysis;
   if (!analysis) {
-    throw new Error(`Issue #${issue.issueNumber} has no AI analysis to score against`);
+    throw new Error(`Issue #${issue.issueNumber} has no analysis to score against`);
   }
 
   const { score: skillMatch, matchingSkills } = computeSkillMatch(analysis.requiredSkills, profile.skills);
@@ -88,11 +128,36 @@ export function computeRuleScore(issue: IssueDocument, profile: DeveloperProfile
   const activity = computeActivity(issue.commentCount, issue.updatedAt);
   const issueAge = computeIssueAge(issue.createdAt);
   const goodFirstIssueBonus = hasGoodFirstIssueLabel(issue.labels) ? 5 : 0;
+  const typeAdjustment = computeTypeAdjustment(analysis.type);
+  const repoComplexityAdjustment = computeRepoComplexityAdjustment(context.repoComplexity);
+  const prComplexityAdjustment = computePrComplexityAdjustment(context.prComplexity);
 
-  const ruleScore = Math.round(skillMatch + timeFit + difficultyFit + activity + issueAge + goodFirstIssueBonus);
+  const total =
+    skillMatch +
+    timeFit +
+    difficultyFit +
+    activity +
+    issueAge +
+    goodFirstIssueBonus +
+    typeAdjustment +
+    repoComplexityAdjustment +
+    prComplexityAdjustment;
+
+  const ruleScore = Math.max(0, Math.min(100, Math.round(total)));
+
+  const reasons: string[] = [];
+  if (matchingSkills.length > 0) {
+    reasons.push(`${matchingSkills.length}/${analysis.requiredSkills.length} required skills match`);
+  }
+  if (timeFit >= 16) reasons.push('Estimated effort fits your available time');
+  if (difficultyFit >= 16) reasons.push('Difficulty matches your experience');
+  if (prComplexityAdjustment > 0) reasons.push('Similar recent PRs were relatively small');
+  if (activity >= 8) reasons.push('Issue is actively maintained');
+  if (goodFirstIssueBonus > 0) reasons.push('Tagged as a good first issue');
+  if (reasons.length === 0) reasons.push('Matches based on skill overlap, time budget, and issue activity');
 
   return {
-    ruleScore: Math.min(100, ruleScore),
+    ruleScore,
     matchingSkills,
     skillMatch,
     timeFit,
@@ -100,5 +165,9 @@ export function computeRuleScore(issue: IssueDocument, profile: DeveloperProfile
     activity,
     issueAge,
     goodFirstIssueBonus,
+    typeAdjustment,
+    repoComplexityAdjustment,
+    prComplexityAdjustment,
+    reasons,
   };
 }

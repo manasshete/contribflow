@@ -34,6 +34,7 @@ export interface RepoIssue {
 export interface MergedPullRequest {
   number: number;
   title: string;
+  body: string;
   mergedAt: string | null;
   changedFiles: number;
   additions: number;
