@@ -1,6 +1,7 @@
 import {
   AnalyzedIssue,
   DeveloperProfileInput,
+  DevToolkit,
   Experience,
   FirstContributionSession,
   IssueType,
@@ -73,6 +74,10 @@ export function getIssueDetail(owner: string, repo: string, issueNumber: number)
 
 export function analyzeIssue(owner: string, repo: string, issueNumber: number): Promise<AnalyzedIssue> {
   return request(`/api/issues/${owner}/${repo}/${issueNumber}/analyze`, { method: 'POST' });
+}
+
+export function getIssueToolkit(owner: string, repo: string, issueNumber: number): Promise<DevToolkit> {
+  return request(`/api/issues/${owner}/${repo}/${issueNumber}/toolkit`);
 }
 
 export function getFirstContributionState(

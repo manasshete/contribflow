@@ -5,6 +5,7 @@ import { RepositoryAnalysisModel } from '../models/RepositoryAnalysis.model';
 import { IssueDocument, IssueModel } from '../models/Issue.model';
 import { getAnalyzedIssues } from '../services/issue/issue.service';
 import { generateContributionPlan } from '../services/issue/contribution-plan.service';
+import { buildDevToolkit } from '../services/issue/dev-toolkit.service';
 
 export async function getRepositoryIssuesHandler(
   req: Request<{ owner: string; repo: string }>,
@@ -107,6 +108,34 @@ export async function analyzeIssueHandler(
     await issueDoc.save();
 
     return res.json(serializeIssue(issueDoc));
+  } catch (err) {
+    return next(err);
+  }
+}
+
+export async function getIssueToolkitHandler(
+  req: Request<{ owner: string; repo: string; issueNumber: string }>,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const { owner, repo, issueNumber } = req.params;
+
+    const repoDoc = await RepositoryModel.findOne({ owner, repo });
+    if (!repoDoc) {
+      throw new AppError(`Repository ${owner}/${repo} has not been analyzed yet. POST to /api/repositories/analyze first.`, 404);
+    }
+
+    const issueDoc = await IssueModel.findOne({ repositoryId: repoDoc._id, issueNumber: Number(issueNumber) });
+    if (!issueDoc) {
+      throw new AppError(
+        `Issue #${issueNumber} not found for ${owner}/${repo}. Fetch GET /api/repositories/${owner}/${repo}/issues first.`,
+        404
+      );
+    }
+
+    const toolkit = await buildDevToolkit(repoDoc, issueDoc);
+    return res.json(toolkit);
   } catch (err) {
     return next(err);
   }

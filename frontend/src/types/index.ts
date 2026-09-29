@@ -152,6 +152,27 @@ export interface RepositoryUnderstanding {
   contributingPath: string | null;
 }
 
+export interface BootstrapInfo {
+  cloneCommand: string;
+  branchName: string;
+  checkoutCommand: string;
+  packageManager: string | null;
+  installCommand: string | null;
+  gotoCommands: string[];
+}
+
+export interface PrTemplateInfo {
+  title: string;
+  body: string;
+  templateFound: boolean;
+  templatePath: string | null;
+}
+
+export interface DevToolkit {
+  bootstrap: BootstrapInfo;
+  pr: PrTemplateInfo;
+}
+
 export type ChecklistSection = 'understand' | 'implement' | 'verify' | 'pr-code' | 'pr-meta';
 
 export interface ChecklistItem {

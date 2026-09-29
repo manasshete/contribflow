@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { getIssueDetail, analyzeIssue, ApiError } from '@/lib/api';
 import { IssueDetailsPanel } from './IssueDetailsPanel';
 import { ContributionGuide } from './ContributionGuide';
+import { DevToolkitPanel } from './DevToolkitPanel';
 
 export function ContribWorkspace({
   owner,
@@ -92,6 +93,8 @@ export function ContribWorkspace({
           </div>
         )}
       </div>
+
+      <DevToolkitPanel owner={owner} repo={repo} issueNumber={issueNumber} />
     </div>
   );
 }
