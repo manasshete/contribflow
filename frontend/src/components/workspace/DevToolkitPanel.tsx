@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import useSWR from 'swr';
-import { Check, Copy, GitBranch, Package, Terminal, FileEdit, FileText } from 'lucide-react';
+import { Check, Copy, GitBranch, Package, Terminal, FileEdit, FileText, GitPullRequestDraft, ArrowRight } from 'lucide-react';
 import { getIssueToolkit } from '@/lib/api';
-import { GithubActionsPanel } from './GithubActionsPanel';
 
 function CopyLine({ label, command }: { label?: string; command: string }) {
   const [copied, setCopied] = useState(false);
@@ -159,7 +159,24 @@ export function DevToolkitPanel({
         </div>
       </div>
 
-      <GithubActionsPanel owner={owner} repo={repo} branchName={bootstrap.branchName} prTitle={pr.title} prBody={pr.body} />
+      <div className="apple-card p-6 border border-white/[0.08] shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-indigo-500/[0.06] to-purple-500/[0.06]">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <GitPullRequestDraft className="h-4 w-4 text-indigo-400" />
+            <h3 className="text-base font-bold text-white tracking-tight">One-Click Fork &amp; PR Automation</h3>
+          </div>
+          <p className="text-xs text-zinc-400">
+            Fork {owner}/{repo}, create branch <code className="text-zinc-300 font-mono">{bootstrap.branchName}</code>, and open your draft PR from a dedicated flow.
+          </p>
+        </div>
+        <Link
+          href={`/repository/${owner}/${repo}/issues/${issueNumber}/actions`}
+          className="h-10 px-5 rounded-full bg-white text-black font-extrabold text-xs hover:bg-[#e8e8ed] active:scale-[0.98] transition-all flex items-center gap-2 shadow-xl whitespace-nowrap self-start sm:self-auto shrink-0"
+        >
+          <span>Open One-Click Fork &amp; PR</span>
+          <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+      </div>
     </div>
   );
 }
