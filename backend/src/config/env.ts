@@ -8,6 +8,15 @@ const envSchema = z.object({
   GITHUB_TOKEN: z.string().optional(),
   MONGODB_URI: z.string().min(1, 'MONGODB_URI is required'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+
+  // GitHub OAuth (one-click fork/branch/PR). Optional — when absent, the
+  // /api/auth and /api/github/* routes return a clear 503 instead of crashing.
+  GITHUB_OAUTH_CLIENT_ID: z.string().optional(),
+  GITHUB_OAUTH_CLIENT_SECRET: z.string().optional(),
+  GITHUB_OAUTH_REDIRECT_URI: z.string().optional(),
+  SESSION_SECRET: z.string().optional(),
+  TOKEN_ENCRYPTION_KEY: z.string().optional(),
+  FRONTEND_URL: z.string().default('http://localhost:3000'),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -22,3 +31,7 @@ if (!parsed.success) {
 }
 
 export const env = parsed.data;
+
+export const isGithubOAuthConfigured = Boolean(
+  env.GITHUB_OAUTH_CLIENT_ID && env.GITHUB_OAUTH_CLIENT_SECRET && env.SESSION_SECRET && env.TOKEN_ENCRYPTION_KEY
+);

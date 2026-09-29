@@ -173,6 +173,29 @@ export interface DevToolkit {
   pr: PrTemplateInfo;
 }
 
+export type GithubSession =
+  | { connected: false }
+  | { connected: true; login: string; name: string | null; avatarUrl: string };
+
+export interface ForkResult {
+  forkOwner: string;
+  forkRepo: string;
+  htmlUrl: string;
+  alreadyExisted: boolean;
+  defaultBranch: string;
+}
+
+export interface CreateBranchResult {
+  branch: string;
+  alreadyExisted: boolean;
+}
+
+export interface CreateDraftPrResult {
+  number: number;
+  htmlUrl: string;
+  alreadyExisted: boolean;
+}
+
 export type ChecklistSection = 'understand' | 'implement' | 'verify' | 'pr-code' | 'pr-meta';
 
 export interface ChecklistItem {

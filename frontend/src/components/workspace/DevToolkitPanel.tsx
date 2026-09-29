@@ -4,6 +4,7 @@ import { useState } from 'react';
 import useSWR from 'swr';
 import { Check, Copy, GitBranch, Package, Terminal, FileEdit, FileText } from 'lucide-react';
 import { getIssueToolkit } from '@/lib/api';
+import { GithubActionsPanel } from './GithubActionsPanel';
 
 function CopyLine({ label, command }: { label?: string; command: string }) {
   const [copied, setCopied] = useState(false);
@@ -96,65 +97,69 @@ export function DevToolkitPanel({
   const { bootstrap, pr } = toolkit;
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 items-start">
-      <div className="apple-card p-6 border border-white/[0.08] shadow-xl flex flex-col gap-4">
-        <div className="flex items-center gap-2 pb-3 border-b border-white/[0.06]">
-          <Terminal className="h-4 w-4 text-indigo-400" />
-          <h2 className="text-base font-bold text-white tracking-tight">Local Workspace Bootstrapper</h2>
-        </div>
-        <p className="text-xs text-zinc-400 leading-relaxed -mt-2">
-          Copy-paste these commands to get straight to work on this issue.
-        </p>
-
-        <CopyLine label="1 · Clone the repository" command={bootstrap.cloneCommand} />
-        <CopyLine label="2 · Create a branch" command={bootstrap.checkoutCommand} />
-
-        {bootstrap.installCommand ? (
-          <CopyLine
-            label={`3 · Install dependencies (${bootstrap.packageManager})`}
-            command={bootstrap.installCommand}
-          />
-        ) : (
-          <div className="flex items-center gap-2 text-xs text-zinc-500">
-            <Package className="h-3.5 w-3.5" />
-            <span>Could not auto-detect a package manager for this repo.</span>
+    <div className="flex flex-col gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 items-start">
+        <div className="apple-card p-6 border border-white/[0.08] shadow-xl flex flex-col gap-4">
+          <div className="flex items-center gap-2 pb-3 border-b border-white/[0.06]">
+            <Terminal className="h-4 w-4 text-indigo-400" />
+            <h2 className="text-base font-bold text-white tracking-tight">Local Workspace Bootstrapper</h2>
           </div>
-        )}
+          <p className="text-xs text-zinc-400 leading-relaxed -mt-2">
+            Copy-paste these commands to get straight to work on this issue.
+          </p>
 
-        {bootstrap.gotoCommands.length > 0 && (
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 font-bold">
-              4 · Jump straight to the affected files
-            </span>
-            <div className="flex flex-col gap-2">
-              {bootstrap.gotoCommands.map((cmd) => (
-                <CopyLine key={cmd} command={cmd} />
-              ))}
+          <CopyLine label="1 · Clone the repository" command={bootstrap.cloneCommand} />
+          <CopyLine label="2 · Create a branch" command={bootstrap.checkoutCommand} />
+
+          {bootstrap.installCommand ? (
+            <CopyLine
+              label={`3 · Install dependencies (${bootstrap.packageManager})`}
+              command={bootstrap.installCommand}
+            />
+          ) : (
+            <div className="flex items-center gap-2 text-xs text-zinc-500">
+              <Package className="h-3.5 w-3.5" />
+              <span>Could not auto-detect a package manager for this repo.</span>
             </div>
-          </div>
-        )}
+          )}
 
-        <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 pt-1">
-          <GitBranch className="h-3 w-3" />
-          <span>Suggested branch: <code className="text-zinc-400">{bootstrap.branchName}</code></span>
+          {bootstrap.gotoCommands.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 font-bold">
+                4 · Jump straight to the affected files
+              </span>
+              <div className="flex flex-col gap-2">
+                {bootstrap.gotoCommands.map((cmd) => (
+                  <CopyLine key={cmd} command={cmd} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 pt-1">
+            <GitBranch className="h-3 w-3" />
+            <span>Suggested branch: <code className="text-zinc-400">{bootstrap.branchName}</code></span>
+          </div>
+        </div>
+
+        <div className="apple-card p-6 border border-white/[0.08] shadow-xl flex flex-col gap-4">
+          <div className="flex items-center justify-between pb-3 border-b border-white/[0.06]">
+            <div className="flex items-center gap-2">
+              <FileEdit className="h-4 w-4 text-indigo-400" />
+              <h2 className="text-base font-bold text-white tracking-tight">PR Description Generator</h2>
+            </div>
+            <span className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-400 uppercase tracking-wider bg-white/[0.04] px-2.5 py-0.5 rounded-full border border-white/[0.06]">
+              <FileText className="h-3 w-3" />
+              {pr.templateFound ? pr.templatePath : 'No template found'}
+            </span>
+          </div>
+
+          <CopyLine label="PR Title" command={pr.title} />
+          <CopyBlock label="PR Description" content={pr.body} />
         </div>
       </div>
 
-      <div className="apple-card p-6 border border-white/[0.08] shadow-xl flex flex-col gap-4">
-        <div className="flex items-center justify-between pb-3 border-b border-white/[0.06]">
-          <div className="flex items-center gap-2">
-            <FileEdit className="h-4 w-4 text-indigo-400" />
-            <h2 className="text-base font-bold text-white tracking-tight">PR Description Generator</h2>
-          </div>
-          <span className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-400 uppercase tracking-wider bg-white/[0.04] px-2.5 py-0.5 rounded-full border border-white/[0.06]">
-            <FileText className="h-3 w-3" />
-            {pr.templateFound ? pr.templatePath : 'No template found'}
-          </span>
-        </div>
-
-        <CopyLine label="PR Title" command={pr.title} />
-        <CopyBlock label="PR Description" content={pr.body} />
-      </div>
+      <GithubActionsPanel owner={owner} repo={repo} branchName={bootstrap.branchName} prTitle={pr.title} prBody={pr.body} />
     </div>
   );
 }

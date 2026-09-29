@@ -1,9 +1,13 @@
 import {
   AnalyzedIssue,
+  CreateBranchResult,
+  CreateDraftPrResult,
   DeveloperProfileInput,
   DevToolkit,
   Experience,
   FirstContributionSession,
+  ForkResult,
+  GithubSession,
   IssueType,
   Recommendation,
   RepositoryAnalysis,
@@ -25,6 +29,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: { 'Content-Type': 'application/json', ...init?.headers },
     cache: 'no-store',
+    credentials: 'include',
   });
 
   if (!res.ok) {
@@ -78,6 +83,48 @@ export function analyzeIssue(owner: string, repo: string, issueNumber: number): 
 
 export function getIssueToolkit(owner: string, repo: string, issueNumber: number): Promise<DevToolkit> {
   return request(`/api/issues/${owner}/${repo}/${issueNumber}/toolkit`);
+}
+
+export function getGithubSession(): Promise<GithubSession> {
+  return request('/api/auth/me');
+}
+
+export function getGithubConnectUrl(returnTo: string): string {
+  return `${API_URL}/api/auth/github?returnTo=${encodeURIComponent(returnTo)}`;
+}
+
+export function disconnectGithub(): Promise<{ ok: true }> {
+  return request('/api/auth/logout', { method: 'POST' });
+}
+
+export function forkRepository(owner: string, repo: string): Promise<ForkResult> {
+  return request('/api/github/fork', { method: 'POST', body: JSON.stringify({ owner, repo }) });
+}
+
+export function createRemoteBranch(
+  owner: string,
+  repo: string,
+  forkOwner: string,
+  branch: string
+): Promise<CreateBranchResult> {
+  return request('/api/github/branch', {
+    method: 'POST',
+    body: JSON.stringify({ owner, repo, forkOwner, branch }),
+  });
+}
+
+export function createDraftPullRequest(
+  owner: string,
+  repo: string,
+  forkOwner: string,
+  branch: string,
+  title: string,
+  body: string
+): Promise<CreateDraftPrResult> {
+  return request('/api/github/pull-request', {
+    method: 'POST',
+    body: JSON.stringify({ owner, repo, forkOwner, branch, title, body }),
+  });
 }
 
 export function getFirstContributionState(

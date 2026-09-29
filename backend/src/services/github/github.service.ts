@@ -8,6 +8,23 @@ const FILE_TREE_CACHE_TTL_MS = 10 * 60 * 1000;
 const RECENT_PRS_CACHE_TTL_MS = 10 * 60 * 1000;
 const PR_DETAIL_CONCURRENCY = 6;
 
+async function loadOctokitConstructor(): Promise<any> {
+  try {
+    const octoModule = require('@octokit/rest');
+    return octoModule.Octokit || octoModule.default?.Octokit || octoModule.default;
+  } catch {
+    const dynamicImport = new Function('specifier', 'return import(specifier)');
+    const octoModule = await dynamicImport('@octokit/rest');
+    return octoModule.Octokit || octoModule.default?.Octokit || octoModule.default;
+  }
+}
+
+/** Builds an Octokit instance authenticated as a specific user (for fork/branch/PR actions taken on their behalf). */
+export async function createUserOctokit(accessToken: string): Promise<Octokit> {
+  const OctokitConstructor = await loadOctokitConstructor();
+  return new OctokitConstructor({ auth: accessToken });
+}
+
 class GitHubServiceImpl {
   private octokitPromise: Promise<Octokit> | null = null;
   private fileTreeCache = new TtlCache<RepoTreeEntry[]>(FILE_TREE_CACHE_TTL_MS);
@@ -16,15 +33,7 @@ class GitHubServiceImpl {
   private async getOctokit(): Promise<Octokit> {
     if (!this.octokitPromise) {
       this.octokitPromise = (async () => {
-        let OctokitConstructor: any;
-        try {
-          const octoModule = require('@octokit/rest');
-          OctokitConstructor = octoModule.Octokit || octoModule.default?.Octokit || octoModule.default;
-        } catch {
-          const dynamicImport = new Function('specifier', 'return import(specifier)');
-          const octoModule = await dynamicImport('@octokit/rest');
-          OctokitConstructor = octoModule.Octokit || octoModule.default?.Octokit || octoModule.default;
-        }
+        const OctokitConstructor = await loadOctokitConstructor();
         return new OctokitConstructor(env.GITHUB_TOKEN ? { auth: env.GITHUB_TOKEN } : {});
       })();
     }
