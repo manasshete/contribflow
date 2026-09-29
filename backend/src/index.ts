@@ -4,7 +4,7 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import mongoose from 'mongoose';
 import { connectDB } from './lib/db';
-import { env } from './config/env';
+import { allowedOrigins } from './config/env';
 import { generalRateLimiter } from './middleware/rateLimiter';
 import { attachGithubUser } from './middleware/auth';
 import repositoryRoutes from './routes/repository.routes';
@@ -19,7 +19,16 @@ const app = express();
 
 app.set('trust proxy', 1);
 app.use(helmet());
-app.use(cors({ origin: env.FRONTEND_URL, credentials: true }));
+app.use(
+  cors({
+    origin(origin, callback) {
+      // No Origin header (curl, server-to-server, same-origin) — allow.
+      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error(`Origin ${origin} is not allowed by CORS`));
+    },
+    credentials: true,
+  })
+);
 app.use(cookieParser());
 app.use(express.json({ limit: '1mb' }));
 app.use(generalRateLimiter);

@@ -17,6 +17,9 @@ const envSchema = z.object({
   SESSION_SECRET: z.string().optional(),
   TOKEN_ENCRYPTION_KEY: z.string().optional(),
   FRONTEND_URL: z.string().default('http://localhost:3000'),
+  // Comma-separated list of extra origins allowed to call this API (e.g. a
+  // deployed Vercel frontend URL). FRONTEND_URL is always allowed too.
+  ALLOWED_ORIGINS: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -31,6 +34,14 @@ if (!parsed.success) {
 }
 
 export const env = parsed.data;
+
+export const allowedOrigins = Array.from(
+  new Set(
+    [env.FRONTEND_URL, 'http://localhost:3000', ...(env.ALLOWED_ORIGINS?.split(',') ?? [])]
+      .map((o) => o.trim())
+      .filter(Boolean)
+  )
+);
 
 export const isGithubOAuthConfigured = Boolean(
   env.GITHUB_OAUTH_CLIENT_ID && env.GITHUB_OAUTH_CLIENT_SECRET && env.SESSION_SECRET && env.TOKEN_ENCRYPTION_KEY
