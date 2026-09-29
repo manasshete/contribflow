@@ -140,7 +140,15 @@ export function FirstContributionWizard({ owner, repo }: { owner: string; repo: 
       />
 
       {displayStep === 1 && (
-        <RepositoryStep repository={repository} onNext={() => setStep1Advanced(true)} />
+        <RepositoryStep
+          repository={repository}
+          onNext={() => {
+            setStep1Advanced(true);
+            if (session && session.currentStep === 1) {
+              advance(2, 1);
+            }
+          }}
+        />
       )}
 
       {displayStep === 2 && (
@@ -148,49 +156,106 @@ export function FirstContributionWizard({ owner, repo }: { owner: string; repo: 
           recommendations={recommendations}
           onSubmitProfile={handleSubmitProfile}
           onChooseIssue={handleChooseIssue}
-        />
-      )}
-
-      {displayStep === 3 && issue && (
-        <IssueUnderstandingStep
-          issue={issue}
-          issueHealth={selectedIssueHealth}
-          onNext={() => advance(4, 3)}
-        />
-      )}
-
-      {displayStep === 4 && issue?.contributionPlan && (
-        <CodeExplorationStep plan={issue.contributionPlan} onNext={() => advance(5, 4)} />
-      )}
-
-      {displayStep === 5 && issue?.contributionPlan && (
-        <SimilarPRStep
+          onResetProfile={() => setRecommendations(null)}
           owner={owner}
           repo={repo}
-          similarPRs={issue.contributionPlan.similarPRs}
-          onNext={() => advance(6, 5)}
+          initialProfile={
+            session
+              ? {
+                  skills: session.skills,
+                  experience: session.experience,
+                  availableHours: session.availableHours,
+                  preferredType: session.preferredType,
+                }
+              : undefined
+          }
         />
       )}
 
-      {displayStep === 6 && session && (
-        <ChecklistStep
-          checklist={session.checklist}
-          onToggle={handleToggleChecklist}
-          onNext={() => advance(7, 6)}
-        />
+      {displayStep === 3 && (
+        issue ? (
+          <IssueUnderstandingStep
+            issue={issue}
+            issueHealth={selectedIssueHealth}
+            onNext={() => advance(4, 3)}
+          />
+        ) : (
+          <div className="apple-card p-12 text-center flex items-center justify-center gap-3 border border-white/[0.08]">
+            <Loader2 className="h-5 w-5 animate-spin text-white" />
+            <span className="text-sm text-zinc-400">Loading issue details...</span>
+          </div>
+        )
       )}
 
-      {displayStep === 7 && session && (
-        <PrPreparationStep
-          owner={owner}
-          repo={repo}
-          checklist={session.checklist}
-          onToggle={handleToggleChecklist}
-          onNext={() => advance(8, 7)}
-        />
+      {displayStep === 4 && (
+        issue?.contributionPlan ? (
+          <CodeExplorationStep plan={issue.contributionPlan} onNext={() => advance(5, 4)} />
+        ) : (
+          <div className="apple-card p-12 text-center flex items-center justify-center gap-3 border border-white/[0.08]">
+            <Loader2 className="h-5 w-5 animate-spin text-white" />
+            <span className="text-sm text-zinc-400">Loading code exploration plan...</span>
+          </div>
+        )
       )}
 
-      {displayStep === 8 && session && <CompletionStep session={session} issue={issue} />}
+      {displayStep === 5 && (
+        issue?.contributionPlan ? (
+          <SimilarPRStep
+            owner={owner}
+            repo={repo}
+            similarPRs={issue.contributionPlan.similarPRs}
+            onNext={() => advance(6, 5)}
+          />
+        ) : (
+          <div className="apple-card p-12 text-center flex items-center justify-center gap-3 border border-white/[0.08]">
+            <Loader2 className="h-5 w-5 animate-spin text-white" />
+            <span className="text-sm text-zinc-400">Loading similar PR analysis...</span>
+          </div>
+        )
+      )}
+
+      {displayStep === 6 && (
+        session ? (
+          <ChecklistStep
+            checklist={session.checklist}
+            onToggle={handleToggleChecklist}
+            onNext={() => advance(7, 6)}
+          />
+        ) : (
+          <div className="apple-card p-12 text-center flex items-center justify-center gap-3 border border-white/[0.08]">
+            <Loader2 className="h-5 w-5 animate-spin text-white" />
+            <span className="text-sm text-zinc-400">Loading contribution checklist...</span>
+          </div>
+        )
+      )}
+
+      {displayStep === 7 && (
+        session ? (
+          <PrPreparationStep
+            owner={owner}
+            repo={repo}
+            checklist={session.checklist}
+            onToggle={handleToggleChecklist}
+            onNext={() => advance(8, 7)}
+          />
+        ) : (
+          <div className="apple-card p-12 text-center flex items-center justify-center gap-3 border border-white/[0.08]">
+            <Loader2 className="h-5 w-5 animate-spin text-white" />
+            <span className="text-sm text-zinc-400">Loading PR preparation guide...</span>
+          </div>
+        )
+      )}
+
+      {displayStep === 8 && (
+        session ? (
+          <CompletionStep session={session} issue={issue} />
+        ) : (
+          <div className="apple-card p-12 text-center flex items-center justify-center gap-3 border border-white/[0.08]">
+            <Loader2 className="h-5 w-5 animate-spin text-white" />
+            <span className="text-sm text-zinc-400">Loading completion status...</span>
+          </div>
+        )
+      )}
     </div>
   );
 }

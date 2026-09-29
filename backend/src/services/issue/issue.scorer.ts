@@ -77,10 +77,12 @@ export function computeIssueHealthScore(issue: IssueHealthInput): number {
 }
 
 export function selectCandidateIssues(issues: RepoIssue[], maxCandidates = 12): RepoIssue[] {
-  return [...issues]
+  const scored = [...issues]
     .map((issue) => ({ issue, score: computeCandidateScore(issue) }))
-    .filter(({ score }) => score > -50)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, maxCandidates)
-    .map(({ issue }) => issue);
+    .sort((a, b) => b.score - a.score);
+
+  const filtered = scored.filter(({ score }) => score > -50);
+  // ponytail: if all candidate issues scored <= -50, fall back to top scored issues rather than returning empty
+  const pool = filtered.length > 0 ? filtered : scored;
+  return pool.slice(0, maxCandidates).map(({ issue }) => issue);
 }
