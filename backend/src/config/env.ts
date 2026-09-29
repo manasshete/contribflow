@@ -43,6 +43,22 @@ export const allowedOrigins = Array.from(
   )
 );
 
+export function isAllowedOrigin(origin?: string): boolean {
+  if (!origin) return true;
+
+  // Exact match from allowed list (e.g. FRONTEND_URL or custom domains)
+  if (allowedOrigins.includes(origin)) return true;
+
+  // Any Vercel deployment URL (production, previews, branch deployments)
+  // e.g. https://frontend-*.vercel.app, https://*-manasshetes-projects.vercel.app
+  if (/^https:\/\/([a-zA-Z0-9_-]+\.)*vercel\.app$/.test(origin)) return true;
+
+  // Local development on localhost or 127.0.0.1 on any port
+  if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return true;
+
+  return false;
+}
+
 export const isGithubOAuthConfigured = Boolean(
   env.GITHUB_OAUTH_CLIENT_ID && env.GITHUB_OAUTH_CLIENT_SECRET && env.SESSION_SECRET && env.TOKEN_ENCRYPTION_KEY
 );

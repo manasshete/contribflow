@@ -4,7 +4,7 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import mongoose from 'mongoose';
 import { connectDB } from './lib/db';
-import { allowedOrigins } from './config/env';
+import { isAllowedOrigin } from './config/env';
 import { generalRateLimiter } from './middleware/rateLimiter';
 import { attachGithubUser } from './middleware/auth';
 import repositoryRoutes from './routes/repository.routes';
@@ -18,13 +18,18 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 const app = express();
 
 app.set('trust proxy', 1);
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
 app.use(
   cors({
     origin(origin, callback) {
-      // No Origin header (curl, server-to-server, same-origin) — allow.
-      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
-      return callback(new Error(`Origin ${origin} is not allowed by CORS`));
+      if (isAllowedOrigin(origin)) {
+        return callback(null, true);
+      }
+      return callback(null, false);
     },
     credentials: true,
   })
