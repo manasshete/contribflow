@@ -1,10 +1,5 @@
 {
   "version": 2,
-  "functions": {
-    "api/**/*.ts": {
-      "includeFiles": "node_modules/@octokit/**"
-    }
-  },
   "rewrites": [
     {
       "source": "/(.*)",
