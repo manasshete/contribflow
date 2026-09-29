@@ -16,8 +16,15 @@ class GitHubServiceImpl {
   private async getOctokit(): Promise<Octokit> {
     if (!this.octokitPromise) {
       this.octokitPromise = (async () => {
-        const dynamicImport = new Function('specifier', 'return import(specifier)');
-        const { Octokit: OctokitConstructor } = await dynamicImport('@octokit/rest');
+        let OctokitConstructor: any;
+        try {
+          const octoModule = require('@octokit/rest');
+          OctokitConstructor = octoModule.Octokit || octoModule.default?.Octokit || octoModule.default;
+        } catch {
+          const dynamicImport = new Function('specifier', 'return import(specifier)');
+          const octoModule = await dynamicImport('@octokit/rest');
+          OctokitConstructor = octoModule.Octokit || octoModule.default?.Octokit || octoModule.default;
+        }
         return new OctokitConstructor(env.GITHUB_TOKEN ? { auth: env.GITHUB_TOKEN } : {});
       })();
     }
