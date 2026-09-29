@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowRight, CheckCircle2, HeartPulse, Loader2 } from 'lucide-react';
+import { ArrowRight, CheckCircle2, HeartPulse, Loader2, AlertCircle, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,6 +23,10 @@ export function IssueSelectionStep({
   recommendations,
   onSubmitProfile,
   onChooseIssue,
+  initialProfile,
+  onResetProfile,
+  owner,
+  repo,
 }: {
   recommendations: Recommendation[] | null;
   onSubmitProfile: (profile: {
@@ -32,11 +36,21 @@ export function IssueSelectionStep({
     preferredType: IssueType | 'Any';
   }) => Promise<void>;
   onChooseIssue: (issueNumber: number) => void;
+  initialProfile?: {
+    skills?: string[];
+    experience?: Experience;
+    availableHours?: number;
+    preferredType?: IssueType | 'Any';
+  };
+  onResetProfile?: () => void;
+  owner?: string;
+  repo?: string;
 }) {
-  const [skillsInput, setSkillsInput] = useState('');
-  const [experience, setExperience] = useState<Experience>('beginner');
-  const [hours, setHours] = useState(TIME_BUCKETS[1].hours);
-  const [preferredType, setPreferredType] = useState<IssueType | 'Any'>('Any');
+  const [skillsInput, setSkillsInput] = useState(initialProfile?.skills?.join(', ') ?? '');
+  const [experience, setExperience] = useState<Experience>(initialProfile?.experience ?? 'beginner');
+  const [hours, setHours] = useState(initialProfile?.availableHours ?? TIME_BUCKETS[1].hours);
+  const [preferredType, setPreferredType] = useState<IssueType | 'Any'>(initialProfile?.preferredType ?? 'Any');
+  const [isEditing, setIsEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [choosing, setChoosing] = useState<number | null>(null);
@@ -48,12 +62,18 @@ export function IssueSelectionStep({
     setSubmitting(true);
     try {
       await onSubmitProfile({ skills, experience, availableHours: hours, preferredType });
+      setIsEditing(false);
     } catch {
       setError('Failed to load recommendations. Please try again.');
     } finally {
       setSubmitting(false);
     }
   }
+
+  // ponytail: explicitly distinguish between form, results, and 0-matches state (avoids JS ![] truthiness bug)
+  const showForm = recommendations === null || isEditing;
+  const showEmpty = recommendations !== null && recommendations.length === 0 && !isEditing;
+  const showRecommendations = recommendations !== null && recommendations.length > 0 && !isEditing;
 
   return (
     <div className="apple-card p-6 sm:p-8 border border-white/[0.08] shadow-2xl flex flex-col gap-6">
@@ -65,7 +85,7 @@ export function IssueSelectionStep({
         </p>
       </div>
 
-      {!recommendations && (
+      {showForm && (
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Label className="text-xs font-bold uppercase tracking-wider text-slate-300">Your Skills (comma-separated)</Label>
@@ -131,19 +151,80 @@ export function IssueSelectionStep({
             </Alert>
           )}
 
-          <Button
-            onClick={handleSubmit}
-            disabled={submitting}
-            className="h-12 w-fit px-6 rounded-full bg-white text-black font-extrabold text-xs hover:bg-[#e8e8ed] active:scale-[0.98] transition-all flex items-center gap-2 shadow-xl self-end"
-          >
-            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            <span>{submitting ? 'Finding issues...' : 'Find My Issues'}</span>
-          </Button>
+          <div className="flex items-center justify-end gap-3">
+            {isEditing && recommendations && (
+              <Button
+                variant="outline"
+                onClick={() => setIsEditing(false)}
+                className="h-12 px-5 rounded-full border-white/[0.1] bg-white/[0.04] text-xs text-zinc-300 hover:text-white"
+              >
+                Cancel
+              </Button>
+            )}
+            <Button
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="h-12 w-fit px-6 rounded-full bg-white text-black font-extrabold text-xs hover:bg-[#e8e8ed] active:scale-[0.98] transition-all flex items-center gap-2 shadow-xl"
+            >
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              <span>{submitting ? 'Finding issues...' : 'Find My Issues'}</span>
+            </Button>
+          </div>
         </div>
       )}
 
-      {recommendations && (
+      {showEmpty && (
+        <div className="flex flex-col items-center justify-center p-8 sm:p-10 rounded-2xl bg-white/[0.02] border border-white/[0.06] text-center gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+            <AlertCircle className="h-6 w-6" />
+          </div>
+          <div className="max-w-md">
+            <h3 className="text-lg font-bold text-white">No Matching Issues Found</h3>
+            <p className="mt-1.5 text-xs sm:text-sm text-zinc-400 leading-relaxed">
+              We couldn&apos;t find any open issues in this repository matching your current profile. The repository might have no open issues, or they may require different skills or categories.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-3 mt-2">
+            <Button
+              onClick={() => {
+                setIsEditing(true);
+                onResetProfile?.();
+              }}
+              className="h-11 px-6 rounded-full bg-white text-black font-extrabold text-xs hover:bg-[#e8e8ed] active:scale-[0.98] transition-all"
+            >
+              Adjust Profile &amp; Try Again
+            </Button>
+            {owner && repo && (
+              <a
+                href={`/repository/${owner}/${repo}`}
+                className="h-11 px-5 rounded-full bg-white/[0.06] text-zinc-300 font-semibold text-xs hover:bg-white/[0.1] transition-all inline-flex items-center justify-center border border-white/[0.08]"
+              >
+                Back to Repository Overview
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showRecommendations && (
         <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between pb-1 border-b border-white/[0.06]">
+            <span className="text-xs font-mono text-zinc-400">
+              Showing top <strong className="text-white">{recommendations.length}</strong> recommended {recommendations.length === 1 ? 'issue' : 'issues'}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setIsEditing(true);
+                onResetProfile?.();
+              }}
+              className="h-8 px-3 rounded-full border-white/[0.1] bg-white/[0.04] text-xs text-zinc-300 hover:text-white hover:bg-white/[0.08]"
+            >
+              <SlidersHorizontal className="h-3 w-3 mr-1.5" />
+              Refine Filters
+            </Button>
+          </div>
           {recommendations.map((rec) => (
             <div key={rec.issueNumber} className="rounded-2xl bg-white/[0.02] p-5 border border-white/[0.06] flex flex-col sm:flex-row gap-4">
               <MatchBadge score={rec.matchScore} />
