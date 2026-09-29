@@ -8,6 +8,7 @@ import repositoryRoutes from './routes/repository.routes';
 import recommendationRoutes from './routes/recommendation.routes';
 import issueRoutes from './routes/issue.routes';
 import firstContributionRoutes from './routes/first-contribution.routes';
+import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 
 const app = express();
 
@@ -38,6 +39,9 @@ app.use('/api/repositories', repositoryRoutes);
 app.use('/api/recommendations', recommendationRoutes);
 app.use('/api/issues', issueRoutes);
 app.use('/api', firstContributionRoutes);
+
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 if (!process.env.VERCEL) {
   const port = process.env.PORT || 4000;
